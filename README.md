@@ -118,6 +118,42 @@ Preview proposed candidates:
 python -m tsa.cli plan -n 6
 ```
 
+Example output (abridged):
+
+```
+Plan Summary
+Proposed 6 candidates across targets ['APP', 'MAPT'], doses [0.25, 0.5, 1.0], durations [7, 14, 28].
+Examples (3):
+  - MAPT ↓  dose=0.25  duration=28d
+  - APP ↓  dose=0.25  duration=14d
+  - MAPT ↓  dose=0.25  duration=7d
+
+Proposals (first 6):
+target  dir  dose  duration
+---------------------------
+MAPT    ↓    0.25  28      
+APP     ↓    0.25  14      
+MAPT    ↓    0.25  7       
+APP     ↓    1.0   7       
+MAPT    ↓    1.0   14      
+MAPT    ↓    0.5   7       
+
+Distribution:
+  target APP    ████████████             2
+  target MAPT   ████████████████████████ 4
+  duration 7d     ████████████████████████ 3
+  duration 14d    ████████████████         2
+  duration 28d    ████████                 1
+  dose 0.25      ████████████████████████ 3
+  dose 0.5       ████████                 1
+  dose 1.0       ████████████████         2
+
+Proposed 6 intervention candidates across targets ['APP', 'MAPT'], doses [0.25, 0.5, 1.0], and
+durations [7, 14, 28]. Example: target MAPT (downregulation) at dose 0.25 for 28 days.
+
+Legend: dir ↑ upregulation, ↓ downregulation.
+```
+
 Export proposals to CSV:
 
 ```
@@ -262,12 +298,25 @@ Evaluated 6 candidate interventions and selected target MAPT (downregulation) at
 Example request/response shape for `run_pipeline`:
 
 ```
+POST /run_pipeline  {"n": 6}
+
 {
-  "proposals": [{"target":"MAPT","direction":-1.0,"dose":0.5,"duration":14}, ...],
-  "simulations": [{"biomarker_delta":[...],"uncertainty":[...]}, ...],
-  "selected": {"choice": { ... }, "score": 1.23},
-  "validation": {"rmse": 0.42},
-  "summary": "Evaluated 6 candidates and selected target MAPT (downregulation) at dose 0.5 for 14 days. Selection score: 1.230 (higher is better). Predictions include 3 biomarker effect values with uncertainties. Retrospective validation RMSE: 0.420."
+  "proposals": [
+    {"target": "MAPT", "direction": -1.0, "dose": 0.25, "duration": 28},
+    {"target": "APP",  "direction": -1.0, "dose": 0.25, "duration": 14},
+    {"target": "MAPT", "direction": -1.0, "dose": 0.25, "duration": 7},
+    …
+  ],
+  "simulations": [
+    {"biomarker_delta": [-0.089, 0.003, 0.041], "uncertainty": [0.059, 0.050, 0.054]},
+    …
+  ],
+  "selected": {
+    "choice": {"target": "MAPT", "direction": -1.0, "dose": 1.0, "duration": 14},
+    "score": 1.899
+  },
+  "validation": {"rmse": 0.189},
+  "summary": "Evaluated 6 candidate interventions and selected target MAPT (downregulation) at dose 1.0 for 14 days. Selection score: 1.899 (higher is better). Predictions include 3 biomarker effect values with uncertainties. Retrospective validation RMSE: 0.189."
 }
 ```
 
