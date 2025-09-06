@@ -119,6 +119,35 @@ def _progress(msg: str) -> None:
     print(f"[{_ts()}] {msg}")
 
 
+def _timestamp_slug() -> str:
+    return time.strftime("%Y%m%d_%H%M%S")
+
+
+def _get_version() -> str:
+    try:
+        # Prefer installed metadata when available
+        from importlib.metadata import version, PackageNotFoundError
+
+        try:
+            return version("therapeutic-simulation-agent")
+        except PackageNotFoundError:
+            pass
+    except Exception:
+        pass
+    # Fallback to egg-info if present in editable/local env
+    try:
+        egg_info = os.path.join(os.path.dirname(__file__), "..", "therapeutic_simulation_agent.egg-info", "PKG-INFO")
+        egg_info = os.path.abspath(egg_info)
+        if os.path.exists(egg_info):
+            with open(egg_info, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if line.startswith("Version:"):
+                        return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return "0.0.0+local"
+
+
 # ---------- Pretty printers ----------
 
 def _print_plan(proposals: List[dict], style: _Style, width: int, table_k: int) -> None:
@@ -450,11 +479,21 @@ def _report_run_md(out: dict, topk: Optional[int], bio_k: int, include_legend: b
     return "\n".join(lines)
 
 
-def cmd_plan(n: int, emit_json: bool, no_color: bool, csv_path: Optional[str], show_k: int, show_legend: bool, md_path: Optional[str]) -> int:
+def cmd_plan(
+    n: int,
+    emit_json: bool,
+    no_color: bool,
+    csv_path: Optional[str],
+    show_k: int,
+    show_legend: bool,
+    md_path: Optional[str],
+    width_opt: Optional[int] = None,
+    save_dir: Optional[str] = None,
+) -> int:
     orch.data.ensure()
     proposals = orch.hypo.propose(n=n)
     summary = _summarize_plan(proposals)
-    width = shutil.get_terminal_size((100, 20)).columns
+    width = int(width_opt) if width_opt else shutil.get_terminal_size((100, 20)).columns
     style = _Style(_supports_color(no_color))
     _print_plan(proposals, style, width, table_k=show_k)
     print()
@@ -462,6 +501,20 @@ def cmd_plan(n: int, emit_json: bool, no_color: bool, csv_path: Optional[str], s
     if show_legend:
         print()
         print("Legend: dir ↑ upregulation, ↓ downregulation.")
+
+    # Auto-saving bundle if save_dir is provided (CSV + Markdown)
+    if save_dir:
+        try:
+            os.makedirs(save_dir, exist_ok=True)
+            ts = _timestamp_slug()
+            auto_csv = os.path.join(save_dir, f"proposals_{ts}.csv")
+            auto_md = os.path.join(save_dir, f"plan_{ts}.md")
+            _write_csv_proposals(auto_csv, proposals)
+            with open(auto_md, "w") as f:
+                f.write(_report_plan_md(proposals, summary, table_k=show_k))
+            print(f"\nSaved: {auto_csv}\nSaved: {auto_md}")
+        except Exception as e:
+            print(f"\nFailed to auto-save outputs under {save_dir}: {e}")
     if csv_path:
         try:
             _write_csv_proposals(csv_path, proposals)
@@ -529,17 +582,29 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     return out
 
 
-def cmd_run(n: int, emit_json: bool, no_color: bool, topk: Optional[int], bio_k: int, show_legend: bool, stream: bool, narrative: bool, md_path: Optional[str]) -> int:
+def cmd_run(
+    n: int,
+    emit_json: bool,
+    no_color: bool,
+    topk: Optional[int],
+    bio_k: int,
+    show_legend: bool,
+    stream: bool,
+    narrative: bool,
+    md_path: Optional[str],
+    width_opt: Optional[int] = None,
+    save_dir: Optional[str] = None,
+) -> int:
     t0 = time.time()
     if stream:
         style = _Style(_supports_color(no_color))
-        width = shutil.get_terminal_size((100, 20)).columns
+        width = int(width_opt) if width_opt else shutil.get_terminal_size((100, 20)).columns
         out = _run_streamed(n=n, style=style, width=width)
     else:
         out = orch.run_pipeline(n=n)
     out["summary"] = _summarize_pipeline(out)
     dt = time.time() - t0
-    width = shutil.get_terminal_size((100, 20)).columns
+    width = int(width_opt) if width_opt else shutil.get_terminal_size((100, 20)).columns
     style = _Style(_supports_color(no_color))
     _print_run(out, style, width, topk, bio_k=bio_k, show_legend=show_legend)
     if narrative:
@@ -569,6 +634,19 @@ def cmd_run(n: int, emit_json: bool, no_color: bool, topk: Optional[int], bio_k:
         ],
         width,
     )
+    # Auto-saving bundle if save_dir is provided (Markdown)
+    if save_dir:
+        try:
+            os.makedirs(save_dir, exist_ok=True)
+            ts = _timestamp_slug()
+            auto_md = os.path.join(save_dir, f"pipeline_report_{ts}.md")
+            report = _report_run_md(out, topk=topk, bio_k=bio_k, include_legend=show_legend, include_narrative=narrative, elapsed_s=dt)
+            with open(auto_md, "w") as f:
+                f.write(report)
+            print(f"\nSaved report to: {auto_md}")
+        except Exception as e:
+            print(f"\nFailed to auto-save report under {save_dir}: {e}")
+
     if md_path:
         try:
             if os.path.dirname(md_path):
@@ -585,7 +663,17 @@ def cmd_run(n: int, emit_json: bool, no_color: bool, topk: Optional[int], bio_k:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Therapeutic Simulation Agent CLI")
+    parser = argparse.ArgumentParser(
+        description="Therapeutic Simulation Agent CLI",
+        epilog=(
+            "Examples:\n"
+            "  tsa plan -n 6 --md outputs/plan.md\n"
+            "  tsa run -n 6 --top 5 --stream --narrative --save outputs/\n"
+            "  tsa api --host 0.0.0.0 --port 8000 --reload --open-docs\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--version", action="version", version=f"tsa { _get_version() }")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_plan = sub.add_parser("plan", help="Generate candidate proposals and print a summary")
@@ -596,6 +684,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_plan.add_argument("--show", type=int, default=6, help="Show first K proposals in a table")
     p_plan.add_argument("--no-legend", action="store_true", help="Hide legend/explanations")
     p_plan.add_argument("--md", metavar="PATH", help="Write a Markdown plan report to PATH")
+    p_plan.add_argument("--width", type=int, help="Override terminal width for wrapping and tables")
+    p_plan.add_argument("--save", metavar="DIR", help="Auto-save CSV and Markdown to DIR with timestamped filenames")
 
     p_run = sub.add_parser("run", help="Run end-to-end pipeline and print a summary")
     p_run.add_argument("-n", type=int, default=6, help="Number of candidates to evaluate")
@@ -607,6 +697,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_run.add_argument("--stream", action="store_true", help="Stream step-by-step progress messages during the run")
     p_run.add_argument("--narrative", action="store_true", help="Add a short plain-English explanation of the results")
     p_run.add_argument("--md", metavar="PATH", help="Write a Markdown pipeline report to PATH")
+    p_run.add_argument("--width", type=int, help="Override terminal width for wrapping and tables")
+    p_run.add_argument("--save", metavar="DIR", help="Auto-save Markdown report to DIR with a timestamped filename")
 
     p_api = sub.add_parser("api", help="Run the FastAPI server (uvicorn)")
     p_api.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
@@ -621,6 +713,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_api.add_argument("--workers", type=int, default=1, help="Number of worker processes (reload incompatible)")
     p_api.add_argument("--open-docs", action="store_true", help="Open the Swagger UI in your browser")
 
+    p_info = sub.add_parser("info", help="Show environment and configuration info")
+    p_info.add_argument("--json", action="store_true", help="Output as JSON")
+
+    p_init = sub.add_parser("init", help="Bootstrap or verify local data availability")
+    p_init.add_argument("--show", action="store_true", help="List expected data files after ensuring availability")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "plan":
@@ -632,6 +730,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             show_k=max(1, int(args.show)),
             show_legend=(not args.no_legend),
             md_path=args.md,
+            width_opt=args.width,
+            save_dir=args.save,
         )
     if args.cmd == "run":
         topk = max(1, int(args.top)) if args.top else None
@@ -645,6 +745,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             stream=args.stream,
             narrative=args.narrative,
             md_path=args.md,
+            width_opt=args.width,
+            save_dir=args.save,
         )
     if args.cmd == "api":
         # Import here so other commands don't require uvicorn installed
@@ -681,6 +783,69 @@ def main(argv: Optional[List[str]] = None) -> int:
             log_level=args.log_level,
             workers=(args.workers if not args.reload else None),
         )
+        return 0
+
+    if args.cmd == "info":
+        import sys
+        info = {
+            "version": _get_version(),
+            "python": sys.version.split(" ")[0],
+            "data_dir": str(DATA_DIR),
+            "seed": RANDOM_SEED,
+            "latent_dim": LATENT_DIM,
+        }
+        # Optional libs
+        try:
+            import torch  # type: ignore
+
+            info["torch"] = torch.__version__
+        except Exception:
+            info["torch"] = None
+        try:
+            import fastapi  # type: ignore
+            import uvicorn  # type: ignore
+
+            info["api_available"] = True
+            info["fastapi"] = getattr(fastapi, "__version__", None)
+            info["uvicorn"] = getattr(uvicorn, "__version__", None)
+        except Exception:
+            info["api_available"] = False
+        # Data dir status
+        try:
+            exists = os.path.isdir(DATA_DIR)
+            files = os.listdir(DATA_DIR) if exists else []
+            info["data_dir_exists"] = bool(exists)
+            info["data_files"] = sorted(files)[:20]
+        except Exception:
+            info["data_dir_exists"] = False
+            info["data_files"] = []
+        if getattr(args, "json", False):
+            print(json.dumps(info, indent=2))
+        else:
+            print("TSA Info")
+            _print_table(
+                ["key", "value"],
+                [[k, str(v)] for k, v in info.items() if k not in ("data_files",)],
+                shutil.get_terminal_size((100, 20)).columns,
+            )
+            if info.get("data_files"):
+                print("\nData files (head):")
+                for name in info["data_files"]:
+                    print(f"  - {name}")
+        return 0
+
+    if args.cmd == "init":
+        _progress("Ensuring data availability…")
+        orch.data.ensure()
+        _progress(f"Data ready at {DATA_DIR}")
+        if args.show:
+            try:
+                files = sorted(os.listdir(DATA_DIR))
+                print("\nData files:")
+                for name in files:
+                    print(f"  - {name}")
+            except Exception as e:
+                print(f"Failed to list data files: {e}")
         return 0
 
     parser.error("Unknown command")

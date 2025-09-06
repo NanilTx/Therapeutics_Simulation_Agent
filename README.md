@@ -82,11 +82,45 @@ Common flags
 - `--md PATH` (run/plan): export a Markdown report
 - `--json`: append structured JSON after the summary
 - `--no-color`: disable ANSI coloring
+- `--save DIR`: auto-save outputs to DIR with timestamped filenames
+- `--width N`: override terminal width for wrapping/tables
+- `--version`: print CLI version
+
+#### CLI Overview
+
+| Subcommand | Purpose | Key options |
+|---|---|---|
+| `plan` | Generate and summarize candidate proposals | `-n`, `--show`, `--csv`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
+| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--stream`, `--narrative`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
+| `api` | Launch FastAPI server (uvicorn) | `--host`, `--port`, `--reload`, `--workers`, `--log-level`, `--open-docs` |
+| `init` | Ensure data directory is populated | `--show` |
+| `info` | Show environment and configuration details | `--json` |
+| (global) | Global flags available to all | `--version` |
 
 Example with streaming and Markdown report:
 
 ```
 python -m tsa.cli run -n 6 --top 5 --bio 5 --stream --narrative --md outputs/pipeline_report.md
+```
+
+Auto-save reports with a single flag:
+
+```
+python -m tsa.cli run -n 6 --stream --narrative --save outputs/
+python -m tsa.cli plan -n 6 --save outputs/
+```
+
+Utility commands:
+
+```
+# Show environment/config and optional library availability
+tsa info --json
+
+# Ensure data is present and list files
+tsa init --show
+
+# Print installed version
+tsa --version
 ```
 
 ### Installable CLI (pipx)
@@ -106,6 +140,8 @@ Then run:
 tsa run -n 6
 tsa plan -n 6 --json
 tsa run -n 6 --stream --narrative --md outputs/report.md
+tsa info --json
+tsa init --show
 ```
 
 ### Run the API via CLI
@@ -133,6 +169,8 @@ Tips:
 - Add `--json` to include structured JSON after the summary.
 - Use `--top N` with `run` to show a Top‑N ranking table.
 - Use `--no-color` to disable ANSI styling in terminals that don’t support it.
+- Run `tsa info` to see environment/config details (version, data dir, etc.).
+- Run `tsa init` to ensure the local data directory is populated.
 
 Sample `run` output:
 
