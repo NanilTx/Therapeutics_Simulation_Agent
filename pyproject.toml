@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "therapeutic-simulation-agent"
+version = "0.2.0"
+description = "Therapeutic Simulation Agent: propose, simulate, and validate therapeutic hypotheses."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Proprietary"}
+authors = [{ name = "TSA Authors" }]
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "pydantic==2.8.2",
+  "numpy",
+  "pandas",
+  "torch==2.3.1",
+  "scikit-learn",
+  "requests",
+]
+
+[project.urls]
+Homepage = "https://example.com/therapeutic-simulation-agent"
+
+[project.scripts]
+tsa = "tsa.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tsa*"]
+
