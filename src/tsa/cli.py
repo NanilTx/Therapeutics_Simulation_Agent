@@ -2,9 +2,11 @@ import argparse
 import json
 import math
 import shutil
+import time
 from typing import List, Optional
 
 from .api.app import orch, _summarize_plan, _summarize_pipeline
+from .config import RANDOM_SEED, LATENT_DIM, DATA_DIR
 from .agents.critic_agent import CriticAgent
 
 
@@ -70,6 +72,13 @@ def _wrap(s: str, width: int) -> str:
     return "\n".join(textwrap.wrap(s, width=width))
 
 
+def _bar(v: int, vmax: int, width: int = 24, fill: str = "█") -> str:
+    if vmax <= 0:
+        return ""
+    n = max(0, min(width, int(round(width * (v / float(vmax))))))
+    return fill * n + " " * (width - n)
+
+
 # ---------- Pretty printers ----------
 
 def _print_plan(proposals: List[dict], style: _Style, width: int) -> None:
@@ -95,6 +104,29 @@ def _print_plan(proposals: List[dict], style: _Style, width: int) -> None:
         print(
             f"  - {p.get('target')} {arrow}  dose={p.get('dose')}  duration={p.get('duration')}d"
         )
+    # Distributions (targets / durations / doses)
+    try:
+        from collections import Counter
+
+        t_counts = Counter(p.get("target") for p in proposals)
+        d_counts = Counter(int(p.get("duration")) for p in proposals)
+        dose_counts = Counter(p.get("dose") for p in proposals)
+        t_max = max(t_counts.values()) if t_counts else 0
+        d_max = max(d_counts.values()) if d_counts else 0
+        dose_max = max(dose_counts.values()) if dose_counts else 0
+        print()
+        print(f"{style.dim}Distribution:{style.reset}")
+        for t in sorted(t_counts):
+            bar = _bar(t_counts[t], t_max)
+            print(f"  target {t:<6} {bar} {t_counts[t]}")
+        for dur in sorted(d_counts):
+            bar = _bar(d_counts[dur], d_max)
+            print(f"  duration {str(dur)+'d':<6} {bar} {d_counts[dur]}")
+        for dose in sorted(dose_counts):
+            bar = _bar(dose_counts[dose], dose_max)
+            print(f"  dose {str(dose):<9} {bar} {dose_counts[dose]}")
+    except Exception:
+        pass
 
 
 def _write_csv_proposals(path: str, proposals: List[dict]) -> None:
@@ -144,12 +176,36 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
         print(f"Biomarker effects (first {min(3,d)} of {d}): {preview}")
 
     # Top-K table using CriticAgent scores
+    next_best = None
+    if sims:
+        # Score breakdown for selected
+        try:
+            import numpy as np
+
+            sel_idx = None
+            # Find selected index by matching dict
+            for i, p in enumerate(out.get("proposals", [])):
+                if p == choice:
+                    sel_idx = i
+                    break
+            if sel_idx is not None:
+                eff = float(abs(np.array(sims[sel_idx].get("biomarker_delta", [])).astype(float)).sum())
+                unc = float(np.array(sims[sel_idx].get("uncertainty", [])).astype(float).sum()) + 1e-6
+                print(
+                    f"Score breakdown: effect_sum={_fmt_float(eff)}  uncertainty_sum={_fmt_float(unc)}  ratio={_fmt_float(eff/unc)}"
+                )
+        except Exception:
+            pass
+
     if topk and sims:
         critic = CriticAgent()
         import numpy as np
 
         scores = critic.score(sims)
-        idx = list(np.argsort(scores)[::-1][: int(topk)])
+        order = list(np.argsort(scores)[::-1])
+        idx = order[: int(topk)]
+        if len(order) > 1:
+            next_best = float(scores[order[1]])
         print(f"\n{style.bold}Top {len(idx)} Candidates{style.reset}")
         # Column widths
         cols = ["rank", "target", "dir", "dose", "duration", "score"]
@@ -158,7 +214,7 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
             p = out["proposals"][i]
             rows.append(
                 [
-                    str(r),
+                    ("*" if r == 1 else " ") + str(r),
                     str(p.get("target")),
                     _dir_arrow(p.get("direction", -1.0)),
                     str(p.get("dose")),
@@ -179,6 +235,14 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
         print("-" * min(width, sum(w.values()) + 2 * (len(cols) - 1)))
         for r in rows:
             print(fmt_row(r))
+
+    if next_best is not None and isinstance(score, (int, float)):
+        try:
+            gap = float(score) - float(next_best)
+            rel = 100.0 * gap / (float(next_best) + 1e-9)
+            print(f"Gap to next best: Δ={_fmt_float(gap)} ({_fmt_float(rel,2)}%)")
+        except Exception:
+            pass
 
     # Summary line at end
     print()
@@ -207,11 +271,17 @@ def cmd_plan(n: int, emit_json: bool, no_color: bool, csv_path: Optional[str]) -
 
 
 def cmd_run(n: int, emit_json: bool, no_color: bool, topk: Optional[int]) -> int:
+    t0 = time.time()
     out = orch.run_pipeline(n=n)
     out["summary"] = _summarize_pipeline(out)
+    dt = time.time() - t0
     width = shutil.get_terminal_size((100, 20)).columns
     style = _Style(_supports_color(no_color))
     _print_run(out, style, width, topk)
+    # Settings footer
+    print(
+        f"Settings: n={n}  seed={RANDOM_SEED}  latent_dim={LATENT_DIM}  data_dir={DATA_DIR}  elapsed={_fmt_float(dt,3)}s"
+    )
     if emit_json:
         print(json.dumps(out, indent=2))
     return 0
