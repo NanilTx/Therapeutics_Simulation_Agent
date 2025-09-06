@@ -70,10 +70,12 @@ dose 1.0 for 14 days. A quick retrospective check suggests the model’s predict
 calibrated (RMSE shown above).
 ```
 
-Optionally save a Markdown report and artifacts:
+Auto-saving
+
+By default, both `run` and `plan` auto-save artifacts to `outputs/` with timestamped filenames. Use `--no-save` to disable. You can additionally write to a specific path with `--md PATH` or `--csv PATH`.
 
 ```
-python -m tsa.cli run -n 6 --md outputs/pipeline_report.md --save outputs/
+python -m tsa.cli run -n 6 --md outputs/pipeline_report.md
 ```
 
 Preview proposals only:
@@ -175,10 +177,11 @@ Common flags
 - `--no-narrative` (run): disable narrative explanation (on by default)
 - `--csv PATH` (plan): write proposals to CSV
 - `--show K` (plan): show the first K proposals in a table
-- `--md PATH` (run/plan): export a Markdown report
+- `--md PATH` (run/plan): also write a Markdown report to PATH
 - `--json`: append structured JSON after the summary
 - `--no-color`: disable ANSI coloring
-- `--save DIR`: auto-save outputs to DIR with timestamped filenames
+- `--save DIR`: auto-save outputs to DIR with timestamped filenames (default: `outputs`)
+- `--no-save`: disable auto-saving
 - `--width N`: override terminal width for wrapping/tables
 - `--version`: print CLI version
 
@@ -186,8 +189,8 @@ Common flags
 
 | Subcommand | Purpose | Key options |
 |---|---|---|
-| `plan` | Generate and summarize candidate proposals | `-n`, `--show`, `--csv`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
-| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--no-stream`, `--no-narrative`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
+| `plan` | Generate and summarize candidate proposals | `-n`, `--show`, `--csv`, `--md`, `--save`, `--no-save`, `--width`, `--json`, `--no-color`, `--no-legend` |
+| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--no-stream`, `--no-narrative`, `--md`, `--save`, `--no-save`, `--width`, `--json`, `--no-color`, `--no-legend` |
 | `api` | Launch FastAPI server (uvicorn) | `--host`, `--port`, `--reload`, `--workers`, `--log-level`, `--open-docs` |
 | `init` | Ensure data directory is populated | `--show` |
 | `info` | Show environment and configuration details | `--json` |

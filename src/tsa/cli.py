@@ -685,7 +685,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_plan.add_argument("--no-legend", action="store_true", help="Hide legend/explanations")
     p_plan.add_argument("--md", metavar="PATH", help="Write a Markdown plan report to PATH")
     p_plan.add_argument("--width", type=int, help="Override terminal width for wrapping and tables")
-    p_plan.add_argument("--save", metavar="DIR", help="Auto-save CSV and Markdown to DIR with timestamped filenames")
+    # Saving is enabled by default; provide opt-out and custom dir
+    p_plan.add_argument(
+        "--save",
+        metavar="DIR",
+        dest="save",
+        default="outputs",
+        help="Auto-save CSV and Markdown to DIR with timestamped filenames (default: outputs)",
+    )
+    p_plan.add_argument("--no-save", dest="save", action="store_const", const=None, help="Disable auto-saving of outputs")
 
     p_run = sub.add_parser("run", help="Run end-to-end pipeline and print a summary")
     p_run.add_argument("-n", type=int, default=6, help="Number of candidates to evaluate")
@@ -702,7 +710,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_run.add_argument("--no-narrative", dest="narrative", action="store_false", help="Disable the plain-English explanation")
     p_run.add_argument("--md", metavar="PATH", help="Write a Markdown pipeline report to PATH")
     p_run.add_argument("--width", type=int, help="Override terminal width for wrapping and tables")
-    p_run.add_argument("--save", metavar="DIR", help="Auto-save Markdown report to DIR with a timestamped filename")
+    p_run.add_argument(
+        "--save",
+        metavar="DIR",
+        dest="save",
+        default="outputs",
+        help="Auto-save Markdown report to DIR with a timestamped filename (default: outputs)",
+    )
+    p_run.add_argument("--no-save", dest="save", action="store_const", const=None, help="Disable auto-saving of reports")
 
     p_api = sub.add_parser("api", help="Run the FastAPI server (uvicorn)")
     p_api.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
