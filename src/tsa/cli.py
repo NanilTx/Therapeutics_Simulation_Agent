@@ -759,20 +759,7 @@ def cmd_run(
                 f"A quick retrospective check suggests the model’s predictions are reasonably calibrated (RMSE shown above)."
             ), width
         ))
-    # Settings footer (table)
-    print()
-    print("Configuration")
-    _print_table(
-        ["param", "value"],
-        [
-            ["n", str(n)],
-            ["seed", str(RANDOM_SEED)],
-            ["latent_dim", str(LATENT_DIM)],
-            ["data_dir", str(DATA_DIR)],
-            ["elapsed_s", _fmt_float(dt, 3)],
-        ],
-        width,
-    )
+    # (Removed) Settings footer table to avoid extra console output
     # Auto-saving bundle if save_dir is provided (Markdown)
     if save_dir:
         try:
