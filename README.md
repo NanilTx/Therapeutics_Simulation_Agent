@@ -58,6 +58,7 @@ Preview proposed candidates:
 
 ```
 python -m tsa.cli plan -n 6
+```
 
 Export proposals to CSV:
 
@@ -97,6 +98,7 @@ Then run:
 tsa run -n 6
 tsa plan -n 6 --json
 tsa run -n 6 --stream --narrative --md outputs/report.md
+```
 
 ### Run the API via CLI
 
@@ -117,8 +119,6 @@ For production‑style runs you can use multiple workers (not with `--reload`):
 
 ```
 tsa api --host 0.0.0.0 --port 8000 --workers 4 --log-level info
-```
-```
 ```
 
 Tips:
