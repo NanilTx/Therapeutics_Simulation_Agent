@@ -73,6 +73,20 @@ def _wrap(s: str, width: int) -> str:
     return "\n".join(textwrap.wrap(s, width=width))
 
 
+def _fmt_bytes(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        return str(n)
+    units = ["B", "KB", "MB", "GB", "TB"]
+    i = 0
+    v = float(n)
+    while v >= 1024.0 and i < len(units) - 1:
+        v /= 1024.0
+        i += 1
+    return f"{v:.1f}{units[i]}"
+
+
 def _bar(v: int, vmax: int, width: int = 24, fill: str = "█") -> str:
     if vmax <= 0:
         return ""
@@ -549,13 +563,46 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     except Exception:
         data_info = None
     _progress(f"[1/5] Data ready at {DATA_DIR}")
-    # Brief data details
+    # Brief data details (counts, sizes, quick previews)
     try:
         files = sorted(os.listdir(DATA_DIR))
-        head = ", ".join(files[:5]) + (" …" if len(files) > 5 else "")
+        # Totals
+        sizes = []
+        for name in files:
+            p = os.path.join(DATA_DIR, name)
+            try:
+                sizes.append(os.path.getsize(p))
+            except Exception:
+                sizes.append(0)
+        total_sz = sum(sizes)
+        _progress(f"      files: {len(files)} total, {_fmt_bytes(total_sz)}")
+        # Prepared resources if provided by ensure()
         if isinstance(data_info, dict) and data_info:
             _progress(f"      prepared: {sorted(list(data_info.keys()))}")
-        _progress(f"      files: {head}")
+        # Head listing with sizes
+        for name in files[: min(5, len(files))]:
+            p = os.path.join(DATA_DIR, name)
+            sz = 0
+            try:
+                sz = os.path.getsize(p)
+            except Exception:
+                pass
+            msg = f"        - {name} ({_fmt_bytes(sz)})"
+            # Quick content hint for CSV/JSON
+            try:
+                if name.lower().endswith(".csv"):
+                    with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                        header = f.readline().strip()
+                        if header:
+                            cols = [c.strip() for c in header.split(",")]
+                            msg += f"  header={len(cols)} cols"
+                elif name.lower().endswith(".json"):
+                    with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                        snippet = f.read(120).replace("\n", " ")
+                        msg += f"  preview=\"{snippet[:60]}{'…' if len(snippet)>60 else ''}\""
+            except Exception:
+                pass
+            _progress(msg)
     except Exception:
         pass
 
@@ -568,6 +615,7 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
         total = T * D * K
         _progress(f"      search space: {T} targets × {D} doses × {K} durations = {total} combos")
         _progress("      sampling: shuffled grid, take first n (without replacement)")
+        _progress(f"      seed: {RANDOM_SEED}; dir legend: ↑ upregulation, ↓ downregulation")
     except Exception:
         pass
     proposals = orch.hypo.propose(n=n)
@@ -603,10 +651,13 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
         try:
             eff = abs(sum(float(x) for x in s.get('biomarker_delta', [])))
             unc = sum(float(x) for x in s.get('uncertainty', []))
+            m = len(s.get('biomarker_delta', []))
+            nnz = sum(1 for x in s.get('biomarker_delta', []) if float(x) != 0.0) if m else 0
+            pct_nnz = (100.0 * nnz / m) if m else 0.0
             eff_sums.append(float(eff))
             unc_sums.append(float(unc))
             _progress(
-                f"  • [{i}/{len(proposals)}] {p['target']} dose={p['dose']} dur={p['duration']}d  effect_sum={_fmt_float(eff)}  uncertainty_sum={_fmt_float(unc)}"
+                f"  • [{i}/{len(proposals)}] {p['target']} dose={p['dose']} dur={p['duration']}d  biomarkers={m} ({_fmt_float(pct_nnz,2)}%≠0)  effect_sum={_fmt_float(eff)}  uncertainty_sum={_fmt_float(unc)}"
             )
         except Exception:
             _progress(f"  • [{i}/{len(proposals)}] {p['target']} simulated")
@@ -630,6 +681,7 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
         pass
 
     _progress("[4/5] Scoring candidates (effect vs. uncertainty) and selecting the best…")
+    _progress("      scoring: score = effect_sum / uncertainty_sum (higher is better)")
     critic = CriticAgent()
     scores = critic.score(sims)
     import numpy as np
@@ -655,7 +707,12 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
 
     _progress("[5/5] Running retrospective validation…")
     val = orch.val.validate()
-    _progress(f"[5/5] Validation complete (RMSE={_fmt_float(val.get('rmse'))}); simple retrospective RMSE check")
+    try:
+        n_val = val.get('n') if isinstance(val, dict) else None
+    except Exception:
+        n_val = None
+    extra = f" on {n_val} samples" if n_val else ""
+    _progress(f"[5/5] Validation complete{extra} (RMSE={_fmt_float(val.get('rmse'))}); comparing predictions vs. historical outcomes")
 
     out = {"proposals": proposals, "simulations": sims, "selected": selected, "validation": val}
     out["summary"] = _summarize_pipeline(out)
