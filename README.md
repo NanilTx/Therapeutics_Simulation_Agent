@@ -65,6 +65,24 @@ Export proposals to CSV:
 python -m tsa.cli plan -n 6 --csv outputs/proposals.csv
 ```
 
+Common flags
+
+- `--top N` (run): show a Top‑N ranking table
+- `--bio K` (run): show first K biomarker rows
+- `--stream` (run): show step‑by‑step progress as it happens
+- `--narrative` (run): add a plain‑English explanation
+- `--csv PATH` (plan): write proposals to CSV
+- `--show K` (plan): show the first K proposals in a table
+- `--md PATH` (run/plan): export a Markdown report
+- `--json`: append structured JSON after the summary
+- `--no-color`: disable ANSI coloring
+
+Example with streaming and Markdown report:
+
+```
+python -m tsa.cli run -n 6 --top 5 --bio 5 --stream --narrative --md outputs/pipeline_report.md
+```
+
 ### Installable CLI (pipx)
 
 Install the CLI with pipx to get a global `tsa` command:
@@ -78,6 +96,7 @@ Then run:
 ```
 tsa run -n 6
 tsa plan -n 6 --json
+tsa run -n 6 --stream --narrative --md outputs/report.md
 
 ### Run the API via CLI
 
