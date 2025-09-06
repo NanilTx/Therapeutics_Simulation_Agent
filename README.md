@@ -10,7 +10,7 @@ A compact, multi‑agent pipeline for therapeutic hypothesis generation and simu
 
 ## Quickstart
 
-Prereqs: Python 3.11+
+Prereqs: Python 3.9–3.12 (3.11–3.12 recommended)
 
 1) Create env and install deps
 
@@ -75,7 +75,7 @@ Common flags
 
 - `--top N` (run): show a Top‑N ranking table
 - `--bio K` (run): show first K biomarker rows
-- `--stream` (run): show step‑by‑step progress as it happens
+- `--no-stream` (run): disable streaming (streaming is on by default)
 - `--narrative` (run): add a plain‑English explanation
 - `--csv PATH` (plan): write proposals to CSV
 - `--show K` (plan): show the first K proposals in a table
@@ -91,22 +91,22 @@ Common flags
 | Subcommand | Purpose | Key options |
 |---|---|---|
 | `plan` | Generate and summarize candidate proposals | `-n`, `--show`, `--csv`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
-| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--stream`, `--narrative`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
+| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--no-stream`, `--narrative`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
 | `api` | Launch FastAPI server (uvicorn) | `--host`, `--port`, `--reload`, `--workers`, `--log-level`, `--open-docs` |
 | `init` | Ensure data directory is populated | `--show` |
 | `info` | Show environment and configuration details | `--json` |
 | (global) | Global flags available to all | `--version` |
 
-Example with streaming and Markdown report:
+Example with streaming (default) and Markdown report:
 
 ```
-python -m tsa.cli run -n 6 --top 5 --bio 5 --stream --narrative --md outputs/pipeline_report.md
+python -m tsa.cli run -n 6 --top 5 --bio 5 --narrative --md outputs/pipeline_report.md
 ```
 
 Auto-save reports with a single flag:
 
 ```
-python -m tsa.cli run -n 6 --stream --narrative --save outputs/
+python -m tsa.cli run -n 6 --narrative --save outputs/
 python -m tsa.cli plan -n 6 --save outputs/
 ```
 
@@ -125,13 +125,20 @@ tsa --version
 
 ### Installable CLI (pipx)
 
-Install the CLI with pipx to get a global `tsa` command:
+Install the CLI with pipx to get a global `tsa` command. If your default Python is 3.13, specify Python 3.12 (or 3.11) explicitly, since the pinned dependencies target <3.13:
 
 ```
 # CLI only
-pipx install .
+pipx install --python python3.12 .
 # Or include API extras
-# pipx install ".[api]"
+# pipx install --python python3.12 ".[api]"
+```
+
+If you don’t have Python 3.12 available, on macOS with Homebrew:
+
+```
+brew install python@3.12
+pipx install --python /opt/homebrew/bin/python3.12 .
 ```
 
 Then run:

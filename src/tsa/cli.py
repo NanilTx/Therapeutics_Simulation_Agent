@@ -668,7 +668,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         epilog=(
             "Examples:\n"
             "  tsa plan -n 6 --md outputs/plan.md\n"
-            "  tsa run -n 6 --top 5 --stream --narrative --save outputs/\n"
+            "  tsa run -n 6 --top 5 --narrative --save outputs/\n"
             "  tsa api --host 0.0.0.0 --port 8000 --reload --open-docs\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -694,7 +694,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_run.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
     p_run.add_argument("--bio", type=int, default=5, help="Show first K biomarker rows for the selected candidate")
     p_run.add_argument("--no-legend", action="store_true", help="Hide legend/explanations")
-    p_run.add_argument("--stream", action="store_true", help="Stream step-by-step progress messages during the run")
+    # Streaming is enabled by default; provide an opt-out flag
+    p_run.add_argument("--stream", dest="stream", action="store_true", default=True, help="Enable streaming progress (default)")
+    p_run.add_argument("--no-stream", dest="stream", action="store_false", help="Disable streaming; print only final summary")
     p_run.add_argument("--narrative", action="store_true", help="Add a short plain-English explanation of the results")
     p_run.add_argument("--md", metavar="PATH", help="Write a Markdown pipeline report to PATH")
     p_run.add_argument("--width", type=int, help="Override terminal width for wrapping and tables")
