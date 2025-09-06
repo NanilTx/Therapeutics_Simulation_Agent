@@ -556,13 +556,23 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
 
     t0 = time.time()
     _progress("Starting end-to-end pipeline")
+    # Quick run configuration snapshot
+    try:
+        _progress(
+            f"▶ Run config: n={n}  seed={RANDOM_SEED}  latent_dim={LATENT_DIM}  data_dir={DATA_DIR}"
+        )
+    except Exception:
+        pass
+
+    # Step 1: Data
+    step_t0 = time.time()
     _progress("[1/5] Ensuring data availability…")
     data_info = None
     try:
         data_info = orch.data.ensure()
     except Exception:
         data_info = None
-    _progress(f"[1/5] Data ready at {DATA_DIR}")
+    _progress(f"[1/5] Data ready at {DATA_DIR} (+{_fmt_float(time.time()-step_t0)}s)")
     # Brief data details (counts, sizes, quick previews)
     try:
         files = sorted(os.listdir(DATA_DIR))
@@ -576,6 +586,19 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
                 sizes.append(0)
         total_sz = sum(sizes)
         _progress(f"      files: {len(files)} total, {_fmt_bytes(total_sz)}")
+        # File types summary
+        try:
+            from collections import Counter as _Counter
+            exts = [os.path.splitext(n)[1].lower() for n in files]
+            ec = _Counter(exts)
+            known = [".csv", ".json", ".txt"]
+            other = sum(v for k, v in ec.items() if k not in known)
+            parts = [f".csv={ec.get('.csv',0)}", f".json={ec.get('.json',0)}", f".txt={ec.get('.txt',0)}"]
+            if other:
+                parts.append(f"other={other}")
+            _progress("      by type: " + ", ".join(parts))
+        except Exception:
+            pass
         # Prepared resources if provided by ensure()
         if isinstance(data_info, dict) and data_info:
             _progress(f"      prepared: {sorted(list(data_info.keys()))}")
@@ -606,6 +629,8 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     except Exception:
         pass
 
+    # Step 2: Proposals
+    step_t0 = time.time()
     _progress(f"[2/5] Generating {n} candidate proposals…")
     # Describe the search space and strategy
     try:
@@ -620,7 +645,7 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
         pass
     proposals = orch.hypo.propose(n=n)
     targ_set = sorted({p.get('target') for p in proposals})
-    _progress(f"[2/5] Generated {len(proposals)} proposals across targets {targ_set}")
+    _progress(f"[2/5] Generated {len(proposals)} proposals across targets {targ_set} (+{_fmt_float(time.time()-step_t0)}s)")
     # Show a few concrete examples and distribution
     try:
         k = min(3, len(proposals))
@@ -641,6 +666,8 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     except Exception:
         pass
 
+    # Step 3: Simulations
+    step_t0 = time.time()
     _progress(f"[3/5] Simulating biomarker effects for {len(proposals)} candidates…")
     sims = []
     eff_sums = []
@@ -680,6 +707,10 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     except Exception:
         pass
 
+    _progress(f"[3/5] Simulation batch complete (+{_fmt_float(time.time()-step_t0)}s)")
+
+    # Step 4: Scoring & selection
+    step_t0 = time.time()
     _progress("[4/5] Scoring candidates (effect vs. uncertainty) and selecting the best…")
     _progress("      scoring: score = effect_sum / uncertainty_sum (higher is better)")
     critic = CriticAgent()
@@ -703,8 +734,10 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
             _progress(f"      gap to 2nd best: Δ={_fmt_float(gap)}")
     except Exception:
         pass
-    _progress(f"[4/5] Selected {proposals[best_i]['target']} (score={_fmt_float(scores[best_i])})")
+    _progress(f"[4/5] Selected {proposals[best_i]['target']} (score={_fmt_float(scores[best_i])}) (+{_fmt_float(time.time()-step_t0)}s)")
 
+    # Step 5: Validation
+    step_t0 = time.time()
     _progress("[5/5] Running retrospective validation…")
     val = orch.val.validate()
     try:
@@ -712,7 +745,7 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     except Exception:
         n_val = None
     extra = f" on {n_val} samples" if n_val else ""
-    _progress(f"[5/5] Validation complete{extra} (RMSE={_fmt_float(val.get('rmse'))}); comparing predictions vs. historical outcomes")
+    _progress(f"[5/5] Validation complete{extra} (RMSE={_fmt_float(val.get('rmse'))}); comparing predictions vs. historical outcomes (+{_fmt_float(time.time()-step_t0)}s)")
 
     out = {"proposals": proposals, "simulations": sims, "selected": selected, "validation": val}
     out["summary"] = _summarize_pipeline(out)
