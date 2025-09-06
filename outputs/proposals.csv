@@ -1,0 +1,7 @@
+target,direction,dose,duration
+MAPT,-1.0,0.25,28
+APP,-1.0,0.25,14
+MAPT,-1.0,0.25,7
+APP,-1.0,1.0,7
+MAPT,-1.0,1.0,14
+MAPT,-1.0,0.5,7
