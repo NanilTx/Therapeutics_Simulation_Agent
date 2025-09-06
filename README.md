@@ -12,7 +12,7 @@ A compact, multi‑agent pipeline for therapeutic hypothesis generation and simu
 
 Prereqs: Python 3.9–3.12 (3.11–3.12 recommended)
 
-1) Create env and install deps
+Setup
 
 ```
 python -m venv .venv
@@ -24,12 +24,11 @@ pip install -r requirements-cli.txt
 export PYTHONPATH=src
 ```
 
-2) Run the CLI pipeline (no server)
+### Quickstart: CLI
 
 Run the end-to-end pipeline from your terminal. Streaming is enabled by default so you’ll see progress as it happens.
 
 ```
-export PYTHONPATH=src
 python -m tsa.cli run -n 6 --top 5 --narrative
 ```
 
@@ -77,25 +76,33 @@ Optionally save a Markdown report and artifacts:
 python -m tsa.cli run -n 6 --narrative --md outputs/pipeline_report.md --save outputs/
 ```
 
-3) Run the API (direct)
+Preview proposals only:
 
 ```
-uvicorn tsa.api.app:app --reload --host 0.0.0.0 --port 8000
+python -m tsa.cli plan -n 6
 ```
 
-Then open the interactive docs at `http://localhost:8000/docs` (the root `/` redirects there). A quick health check is available at `GET /status`:
+### Quickstart: API
+
+Start the server via the CLI, then open http://localhost:8000/docs
+
+```
+python -m tsa.cli api --host 0.0.0.0 --port 8000 --reload --open-docs
+```
+
+Health check:
 
 ```
 curl http://localhost:8000/status
 ```
 
-4) Bootstrap synthetic data (optional – API will auto‑ensure if missing)
+Bootstrap synthetic data (optional – the API/CLI will auto‑ensure if missing):
 
 ```
 curl -X POST http://localhost:8000/bootstrap_synth_data
 ```
 
-5) Run the full pipeline
+Run the full pipeline via the API:
 
 ```
 curl -X POST http://localhost:8000/run_pipeline -H 'Content-Type: application/json' -d '{"n": 6}'
