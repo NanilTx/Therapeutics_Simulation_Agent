@@ -29,7 +29,7 @@ export PYTHONPATH=src
 Run the end-to-end pipeline from your terminal. Streaming is enabled by default so you’ll see progress as it happens.
 
 ```
-python -m tsa.cli run -n 6 --top 5 --narrative
+python -m tsa.cli run -n 6 --top 5
 ```
 
 Example output (abridged):
@@ -73,7 +73,7 @@ calibrated (RMSE shown above).
 Optionally save a Markdown report and artifacts:
 
 ```
-python -m tsa.cli run -n 6 --narrative --md outputs/pipeline_report.md --save outputs/
+python -m tsa.cli run -n 6 --md outputs/pipeline_report.md --save outputs/
 ```
 
 Preview proposals only:
@@ -171,8 +171,8 @@ Common flags
 
 - `--top N` (run): show a Top‑N ranking table
 - `--bio K` (run): show first K biomarker rows
-- `--no-stream` (run): disable streaming (streaming is on by default)
-- `--narrative` (run): add a plain‑English explanation
+- `--no-stream` (run): disable streaming (on by default)
+- `--no-narrative` (run): disable narrative explanation (on by default)
 - `--csv PATH` (plan): write proposals to CSV
 - `--show K` (plan): show the first K proposals in a table
 - `--md PATH` (run/plan): export a Markdown report
@@ -187,7 +187,7 @@ Common flags
 | Subcommand | Purpose | Key options |
 |---|---|---|
 | `plan` | Generate and summarize candidate proposals | `-n`, `--show`, `--csv`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
-| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--no-stream`, `--narrative`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
+| `run` | Run end-to-end pipeline and report results | `-n`, `--top`, `--bio`, `--no-stream`, `--no-narrative`, `--md`, `--save`, `--width`, `--json`, `--no-color`, `--no-legend` |
 | `api` | Launch FastAPI server (uvicorn) | `--host`, `--port`, `--reload`, `--workers`, `--log-level`, `--open-docs` |
 | `init` | Ensure data directory is populated | `--show` |
 | `info` | Show environment and configuration details | `--json` |
@@ -196,13 +196,13 @@ Common flags
 Example with streaming (default) and Markdown report:
 
 ```
-python -m tsa.cli run -n 6 --top 5 --bio 5 --narrative --md outputs/pipeline_report.md
+python -m tsa.cli run -n 6 --top 5 --bio 5 --md outputs/pipeline_report.md
 ```
 
 Auto-save reports with a single flag:
 
 ```
-python -m tsa.cli run -n 6 --narrative --save outputs/
+python -m tsa.cli run -n 6 --save outputs/
 python -m tsa.cli plan -n 6 --save outputs/
 ```
 
@@ -242,7 +242,7 @@ Then run:
 ```
 tsa run -n 6
 tsa plan -n 6 --json
-tsa run -n 6 --narrative --md outputs/report.md
+tsa run -n 6 --md outputs/report.md
 tsa info --json
 tsa init --show
 ```

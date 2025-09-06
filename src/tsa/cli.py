@@ -668,7 +668,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         epilog=(
             "Examples:\n"
             "  tsa plan -n 6 --md outputs/plan.md\n"
-            "  tsa run -n 6 --top 5 --narrative --save outputs/\n"
+            "  tsa run -n 6 --top 5 --save outputs/\n"
             "  tsa api --host 0.0.0.0 --port 8000 --reload --open-docs\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -697,7 +697,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Streaming is enabled by default; provide an opt-out flag
     p_run.add_argument("--stream", dest="stream", action="store_true", default=True, help="Enable streaming progress (default)")
     p_run.add_argument("--no-stream", dest="stream", action="store_false", help="Disable streaming; print only final summary")
-    p_run.add_argument("--narrative", action="store_true", help="Add a short plain-English explanation of the results")
+    # Narrative is enabled by default; provide an opt-out flag
+    p_run.add_argument("--narrative", dest="narrative", action="store_true", default=True, help="Include a plain-English explanation (default)")
+    p_run.add_argument("--no-narrative", dest="narrative", action="store_false", help="Disable the plain-English explanation")
     p_run.add_argument("--md", metavar="PATH", help="Write a Markdown pipeline report to PATH")
     p_run.add_argument("--width", type=int, help="Override terminal width for wrapping and tables")
     p_run.add_argument("--save", metavar="DIR", help="Auto-save Markdown report to DIR with a timestamped filename")
