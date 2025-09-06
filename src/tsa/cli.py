@@ -6,7 +6,7 @@ import time
 import os
 from typing import List, Optional
 
-from .api.app import orch, _summarize_plan, _summarize_pipeline
+from .service import orch, _summarize_plan, _summarize_pipeline
 from .config import RANDOM_SEED, LATENT_DIM, DATA_DIR
 from .agents.critic_agent import CriticAgent
 

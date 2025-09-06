@@ -9,12 +9,32 @@ HOST ?= 0.0.0.0
 PORT ?= 8000
 RELOAD ?= --reload
 
-.PHONY: setup run start stop smoke test fmt kill-port
+.PHONY: setup setup-cli setup-api setup-dev-cli setup-dev-all run start stop smoke test fmt kill-port
 
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(PY) -m pip install --upgrade pip
 	$(PIP) install -r requirements.txt
+
+setup-cli:
+	$(PYTHON) -m venv $(VENV)
+	$(PY) -m pip install --upgrade pip
+	$(PIP) install -r requirements-cli.txt
+
+setup-api:
+	$(PYTHON) -m venv $(VENV)
+	$(PY) -m pip install --upgrade pip
+	$(PIP) install -r requirements-api.txt
+
+setup-dev-cli:
+	$(PYTHON) -m venv $(VENV)
+	$(PY) -m pip install --upgrade pip
+	$(PIP) install -e .[dev]
+
+setup-dev-all:
+	$(PYTHON) -m venv $(VENV)
+	$(PY) -m pip install --upgrade pip
+	$(PIP) install -e .[api,dev]
 
 run:
 	PYTHONPATH=src $(UVICORN) tsa.api.app:app $(RELOAD) --host $(HOST) --port $(PORT)

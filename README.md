@@ -17,7 +17,10 @@ Prereqs: Python 3.11+
 ```
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+# CLI only
+pip install -r requirements-cli.txt
+# Or API + CLI
+# pip install -r requirements-api.txt
 export PYTHONPATH=src
 ```
 
@@ -46,6 +49,8 @@ curl -X POST http://localhost:8000/run_pipeline -H 'Content-Type: application/js
 ```
 
 ### CLI
+
+Note: The CLI no longer imports FastAPI at startup. You can use all CLI commands without installing `fastapi`/`uvicorn`. Only the `api` subcommand and the web service require them.
 
 Run the pipeline directly from the terminal with a human‑readable summary (no server required):
 
@@ -89,7 +94,10 @@ python -m tsa.cli run -n 6 --top 5 --bio 5 --stream --narrative --md outputs/pip
 Install the CLI with pipx to get a global `tsa` command:
 
 ```
+# CLI only
 pipx install .
+# Or include API extras
+# pipx install ".[api]"
 ```
 
 Then run:
@@ -105,7 +113,7 @@ tsa run -n 6 --stream --narrative --md outputs/report.md
 Start the FastAPI server (uvicorn) from the CLI:
 
 ```
-# Local dev
+# Local dev (ensure API deps installed, e.g. `pip install -r requirements-api.txt`)
 export PYTHONPATH=src
 python -m tsa.cli api --host 0.0.0.0 --port 8000 --reload --open-docs
 
@@ -178,8 +186,22 @@ docker run --rm -p 8000:8000 -e TSA_DATA_DIR=/app/data tsa:latest
 
 ## Testing
 
+Install dev extras for testing. For the full suite (including API tests), include API extras as well:
+
 ```
+# Editable install with dev tools only (CLI tests)
+pip install -e .[dev]
+
+# Or include API deps to run all tests
+pip install -e .[api,dev]
+
+# Run the full test suite
 pytest -q
+
+# If you installed only [dev] and want to skip API tests
+pytest -q tests/test_loop.py
+# or
+pytest -q -k "not test_status and not test_pipeline"
 ```
 
 ## Configuration
