@@ -24,7 +24,60 @@ pip install -r requirements-cli.txt
 export PYTHONPATH=src
 ```
 
-2) Run the API (direct)
+2) Run the CLI pipeline (no server)
+
+Run the end-to-end pipeline from your terminal. Streaming is enabled by default so you’ll see progress as it happens.
+
+```
+export PYTHONPATH=src
+python -m tsa.cli run -n 6 --top 5 --narrative
+```
+
+Example output (abridged):
+
+```
+[12:34:56] Starting end-to-end pipeline
+[12:34:56] [1/5] Ensuring data availability…
+[12:34:56] [1/5] Data ready at ./data
+[12:34:56] [2/5] Generating 6 candidate proposals…
+[12:34:56] [2/5] Generated 6 proposals across targets ['APP', 'MAPT']
+[12:34:56] [3/5] Simulating biomarker effects for 6 candidates…
+[12:34:56]   • [1/6] MAPT dose=0.25 dur=28d  effect_sum=0.045  uncertainty_sum=0.163
+…
+[12:34:56] [4/5] Selected MAPT (score=1.899)
+[12:34:56] [5/5] Validation complete (RMSE=0.189)
+[12:34:56] Done in 0.01s
+
+Pipeline Results
+Selected Candidate
+target  dir  dose  duration  score
+----------------------------------
+MAPT    ↓    1.0   14        1.899
+Validation RMSE: 0.189 (lower is better)
+
+Top 5 Candidates
+rank  target  dir  dose  duration  score
+----------------------------------------
+*1    MAPT    ↓    1.0   14        1.899
+ 2    APP     ↓    1.0   7         1.512
+ 3    MAPT    ↓    0.5   7         0.950
+ 4    MAPT    ↓    0.25  28        0.817
+ 5    APP     ↓    0.25  14        0.654
+
+In plain terms:
+We proposed 6 interventions and simulated expected biomarker effects with uncertainties. We prefer
+candidates with strong overall effect and lower total uncertainty. Based on this, we selected MAPT at
+dose 1.0 for 14 days. A quick retrospective check suggests the model’s predictions are reasonably
+calibrated (RMSE shown above).
+```
+
+Optionally save a Markdown report and artifacts:
+
+```
+python -m tsa.cli run -n 6 --narrative --md outputs/pipeline_report.md --save outputs/
+```
+
+3) Run the API (direct)
 
 ```
 uvicorn tsa.api.app:app --reload --host 0.0.0.0 --port 8000
@@ -36,13 +89,13 @@ Then open the interactive docs at `http://localhost:8000/docs` (the root `/` red
 curl http://localhost:8000/status
 ```
 
-3) Bootstrap synthetic data (optional – API will auto‑ensure if missing)
+4) Bootstrap synthetic data (optional – API will auto‑ensure if missing)
 
 ```
 curl -X POST http://localhost:8000/bootstrap_synth_data
 ```
 
-4) Run the full pipeline
+5) Run the full pipeline
 
 ```
 curl -X POST http://localhost:8000/run_pipeline -H 'Content-Type: application/json' -d '{"n": 6}'
@@ -146,7 +199,7 @@ Then run:
 ```
 tsa run -n 6
 tsa plan -n 6 --json
-tsa run -n 6 --stream --narrative --md outputs/report.md
+tsa run -n 6 --narrative --md outputs/report.md
 tsa info --json
 tsa init --show
 ```
