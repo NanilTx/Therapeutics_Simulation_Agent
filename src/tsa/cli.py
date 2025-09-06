@@ -543,24 +543,91 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
     t0 = time.time()
     _progress("Starting end-to-end pipeline")
     _progress("[1/5] Ensuring data availability…")
-    orch.data.ensure()
+    data_info = None
+    try:
+        data_info = orch.data.ensure()
+    except Exception:
+        data_info = None
     _progress(f"[1/5] Data ready at {DATA_DIR}")
+    # Brief data details
+    try:
+        files = sorted(os.listdir(DATA_DIR))
+        head = ", ".join(files[:5]) + (" …" if len(files) > 5 else "")
+        if isinstance(data_info, dict) and data_info:
+            _progress(f"      prepared: {sorted(list(data_info.keys()))}")
+        _progress(f"      files: {head}")
+    except Exception:
+        pass
 
     _progress(f"[2/5] Generating {n} candidate proposals…")
+    # Describe the search space and strategy
+    try:
+        T = len(getattr(orch.hypo, 'candidate_targets', []))
+        D = len(getattr(orch.hypo, 'doses', []))
+        K = len(getattr(orch.hypo, 'durations', []))
+        total = T * D * K
+        _progress(f"      search space: {T} targets × {D} doses × {K} durations = {total} combos")
+        _progress("      sampling: shuffled grid, take first n (without replacement)")
+    except Exception:
+        pass
     proposals = orch.hypo.propose(n=n)
-    _progress(f"[2/5] Generated {len(proposals)} proposals across targets {sorted({p['target'] for p in proposals})}")
+    targ_set = sorted({p.get('target') for p in proposals})
+    _progress(f"[2/5] Generated {len(proposals)} proposals across targets {targ_set}")
+    # Show a few concrete examples and distribution
+    try:
+        k = min(3, len(proposals))
+        for i, p in enumerate(proposals[:k], start=1):
+            _progress(
+                f"      ex{i}: target={p.get('target')} dir={_dir_arrow(p.get('direction', -1.0))} dose={p.get('dose')} duration={p.get('duration')}d"
+            )
+        from collections import Counter
+        t_counts = Counter(p.get("target") for p in proposals)
+        d_counts = Counter(int(p.get("duration")) for p in proposals)
+        dose_counts = Counter(p.get("dose") for p in proposals)
+        _progress(
+            "      mix: "
+            + ", ".join(
+                [f"targets={len(t_counts)}", f"durations={len(d_counts)}", f"doses={len(dose_counts)}"]
+            )
+        )
+    except Exception:
+        pass
 
     _progress(f"[3/5] Simulating biomarker effects for {len(proposals)} candidates…")
     sims = []
+    eff_sums = []
+    unc_sums = []
     for i, p in enumerate(proposals, start=1):
         s = orch.sim.run(p)
         sims.append(s)
         try:
             eff = abs(sum(float(x) for x in s.get('biomarker_delta', [])))
             unc = sum(float(x) for x in s.get('uncertainty', []))
-            _progress(f"  • [{i}/{len(proposals)}] {p['target']} dose={p['dose']} dur={p['duration']}d  effect_sum={_fmt_float(eff)}  uncertainty_sum={_fmt_float(unc)}")
+            eff_sums.append(float(eff))
+            unc_sums.append(float(unc))
+            _progress(
+                f"  • [{i}/{len(proposals)}] {p['target']} dose={p['dose']} dur={p['duration']}d  effect_sum={_fmt_float(eff)}  uncertainty_sum={_fmt_float(unc)}"
+            )
         except Exception:
             _progress(f"  • [{i}/{len(proposals)}] {p['target']} simulated")
+    # Aggregate simulation stats
+    try:
+        if eff_sums and unc_sums:
+            import numpy as _np
+            _progress(
+                "      effect_sum stats: "
+                f"min={_fmt_float(float(_np.min(eff_sums)))} "
+                f"median={_fmt_float(float(_np.median(eff_sums)))} "
+                f"max={_fmt_float(float(_np.max(eff_sums)))}"
+            )
+            _progress(
+                "      uncertainty_sum stats: "
+                f"min={_fmt_float(float(_np.min(unc_sums)))} "
+                f"median={_fmt_float(float(_np.median(unc_sums)))} "
+                f"max={_fmt_float(float(_np.max(unc_sums)))}"
+            )
+    except Exception:
+        pass
 
     _progress("[4/5] Scoring candidates (effect vs. uncertainty) and selecting the best…")
     critic = CriticAgent()
@@ -569,11 +636,26 @@ def _run_streamed(n: int, style: _Style, width: int) -> dict:
 
     best_i = int(np.argmax(scores))
     selected = {"choice": proposals[best_i], "score": float(scores[best_i])}
+    # Show a ranked preview of top candidates
+    try:
+        order = list(np.argsort(scores)[::-1])
+        k = min(5, len(order))
+        _progress(f"      top {k} by score:")
+        for rank, idx in enumerate(order[:k], start=1):
+            p = proposals[idx]
+            _progress(
+                f"        {rank}. {p.get('target')} dose={p.get('dose')} dur={p.get('duration')}d  score={_fmt_float(float(scores[idx]))}"
+            )
+        if len(order) > 1:
+            gap = float(scores[order[0]]) - float(scores[order[1]])
+            _progress(f"      gap to 2nd best: Δ={_fmt_float(gap)}")
+    except Exception:
+        pass
     _progress(f"[4/5] Selected {proposals[best_i]['target']} (score={_fmt_float(scores[best_i])})")
 
     _progress("[5/5] Running retrospective validation…")
     val = orch.val.validate()
-    _progress(f"[5/5] Validation complete (RMSE={_fmt_float(val.get('rmse'))})")
+    _progress(f"[5/5] Validation complete (RMSE={_fmt_float(val.get('rmse'))}); simple retrospective RMSE check")
 
     out = {"proposals": proposals, "simulations": sims, "selected": selected, "validation": val}
     out["summary"] = _summarize_pipeline(out)

@@ -1,0 +1,39 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+env/
+
+# Logs / PIDs / local servers
+*.log
+*.pid
+.server*
+
+# Project outputs
+outputs/
+
+# Node (if present)
+node_modules/

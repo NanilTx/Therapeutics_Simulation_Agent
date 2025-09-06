@@ -7,16 +7,16 @@ name = "therapeutic-simulation-agent"
 version = "0.2.0"
 description = "Therapeutic Simulation Agent: propose, simulate, and validate therapeutic hypotheses."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 license = {text = "Proprietary"}
 authors = [{ name = "TSA Authors" }]
 dependencies = [
   "pydantic==2.8.2",
-  "numpy",
-  "pandas",
+  "numpy==1.26.4",
+  "pandas==2.2.2",
   "torch==2.3.1",
-  "scikit-learn",
-  "requests",
+  "scikit-learn==1.5.1",
+  "requests==2.32.3",
 ]
 
 [project.urls]
