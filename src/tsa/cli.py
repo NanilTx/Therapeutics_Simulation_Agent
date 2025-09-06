@@ -79,9 +79,24 @@ def _bar(v: int, vmax: int, width: int = 24, fill: str = "█") -> str:
     return fill * n + " " * (width - n)
 
 
+def _print_table(headers: List[str], rows: List[List[str]], width: int) -> None:
+    if not rows:
+        return
+    w = {h: len(h) for h in headers}
+    for row in rows:
+        for h, v in zip(headers, row):
+            w[h] = max(w[h], len(str(v)))
+    def fmt_row(row: List[str]) -> str:
+        return "  ".join(str(v).ljust(w[h]) for h, v in zip(headers, row))
+    print(fmt_row(headers))
+    print("-" * min(width, sum(w.values()) + 2 * (len(headers) - 1)))
+    for r in rows:
+        print(fmt_row(r))
+
+
 # ---------- Pretty printers ----------
 
-def _print_plan(proposals: List[dict], style: _Style, width: int) -> None:
+def _print_plan(proposals: List[dict], style: _Style, width: int, table_k: int) -> None:
     n = len(proposals)
     if n == 0:
         print("No proposals were generated.")
@@ -104,6 +119,18 @@ def _print_plan(proposals: List[dict], style: _Style, width: int) -> None:
         print(
             f"  - {p.get('target')} {arrow}  dose={p.get('dose')}  duration={p.get('duration')}d"
         )
+    # Tabular preview
+    trows = []
+    for p in proposals[: max(1, int(table_k))]:
+        trows.append([
+            str(p.get("target")),
+            _dir_arrow(p.get("direction", -1.0)),
+            str(p.get("dose")),
+            str(p.get("duration")),
+        ])
+    print()
+    print(f"{style.dim}Proposals (first {len(trows)}):{style.reset}")
+    _print_table(["target", "dir", "dose", "duration"], trows, width)
     # Distributions (targets / durations / doses)
     try:
         from collections import Counter
@@ -146,7 +173,7 @@ def _write_csv_proposals(path: str, proposals: List[dict]) -> None:
 from typing import Optional as _Optional
 
 
-def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> None:
+def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int], bio_k: int, show_legend: bool) -> None:
     # Header
     print(f"{style.bold}Pipeline Results{style.reset}")
     # Selected
@@ -154,10 +181,17 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
     choice = pick.get("choice", {})
     score = pick.get("score")
     arrow = _dir_arrow(choice.get("direction", -1.0))
-    print(
-        f"Selected: {style.cyan if hasattr(style,'cyan') else ''}{choice.get('target')}{style.reset} {arrow}  "
-        f"dose={choice.get('dose')}  duration={choice.get('duration')}d  "
-        f"score={_fmt_float(score)}"
+    print(f"{style.bold}Selected Candidate{style.reset}")
+    _print_table(
+        ["target", "dir", "dose", "duration", "score"],
+        [[
+            str(choice.get("target")),
+            arrow,
+            str(choice.get("dose")),
+            str(choice.get("duration")),
+            _fmt_float(score),
+        ]],
+        width,
     )
 
     # Validation
@@ -170,10 +204,10 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
         deltas = sims[0].get("biomarker_delta", [])
         unc = sims[0].get("uncertainty", [])
         d = len(deltas)
-        preview = ", ".join(
-            f"{_fmt_float(deltas[i])}±{_fmt_float(unc[i])}" for i in range(min(3, d))
-        )
-        print(f"Biomarker effects (first {min(3,d)} of {d}): {preview}")
+        m = min(max(1, int(bio_k)), d)
+        print(f"Biomarker Effects (first {m} of {d})")
+        rows = [[str(i + 1), _fmt_float(deltas[i]), _fmt_float(unc[i])] for i in range(m)]
+        _print_table(["index", "delta", "uncertainty"], rows, width)
 
     # Top-K table using CriticAgent scores
     next_best = None
@@ -222,19 +256,7 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
                     _fmt_float(scores[i]),
                 ]
             )
-        # Compute widths
-        w = {c: len(c) for c in cols}
-        for row in rows:
-            for c, v in zip(cols, row):
-                w[c] = max(w[c], len(v))
-        # Print header
-        def fmt_row(r: List[str]) -> str:
-            return "  ".join(v.ljust(w[c]) for c, v in zip(cols, r))
-
-        print(fmt_row(cols))
-        print("-" * min(width, sum(w.values()) + 2 * (len(cols) - 1)))
-        for r in rows:
-            print(fmt_row(r))
+        _print_table(cols, rows, width)
 
     if next_best is not None and isinstance(score, (int, float)):
         try:
@@ -247,17 +269,23 @@ def _print_run(out: dict, style: _Style, width: int, topk: _Optional[int]) -> No
     # Summary line at end
     print()
     print(_wrap(out.get("summary", _summarize_pipeline(out)), width))
+    if show_legend:
+        print()
+        print("Legend: dir ↑ upregulation, ↓ downregulation. Score = effect_sum / uncertainty_sum (higher is better).")
 
 
-def cmd_plan(n: int, emit_json: bool, no_color: bool, csv_path: Optional[str]) -> int:
+def cmd_plan(n: int, emit_json: bool, no_color: bool, csv_path: Optional[str], show_k: int, show_legend: bool) -> int:
     orch.data.ensure()
     proposals = orch.hypo.propose(n=n)
     summary = _summarize_plan(proposals)
     width = shutil.get_terminal_size((100, 20)).columns
     style = _Style(_supports_color(no_color))
-    _print_plan(proposals, style, width)
+    _print_plan(proposals, style, width, table_k=show_k)
     print()
     print(_wrap(summary, width))
+    if show_legend:
+        print()
+        print("Legend: dir ↑ upregulation, ↓ downregulation.")
     if csv_path:
         try:
             _write_csv_proposals(csv_path, proposals)
@@ -270,17 +298,27 @@ def cmd_plan(n: int, emit_json: bool, no_color: bool, csv_path: Optional[str]) -
     return 0
 
 
-def cmd_run(n: int, emit_json: bool, no_color: bool, topk: Optional[int]) -> int:
+def cmd_run(n: int, emit_json: bool, no_color: bool, topk: Optional[int], bio_k: int, show_legend: bool) -> int:
     t0 = time.time()
     out = orch.run_pipeline(n=n)
     out["summary"] = _summarize_pipeline(out)
     dt = time.time() - t0
     width = shutil.get_terminal_size((100, 20)).columns
     style = _Style(_supports_color(no_color))
-    _print_run(out, style, width, topk)
-    # Settings footer
-    print(
-        f"Settings: n={n}  seed={RANDOM_SEED}  latent_dim={LATENT_DIM}  data_dir={DATA_DIR}  elapsed={_fmt_float(dt,3)}s"
+    _print_run(out, style, width, topk, bio_k=bio_k, show_legend=show_legend)
+    # Settings footer (table)
+    print()
+    print("Configuration")
+    _print_table(
+        ["param", "value"],
+        [
+            ["n", str(n)],
+            ["seed", str(RANDOM_SEED)],
+            ["latent_dim", str(LATENT_DIM)],
+            ["data_dir", str(DATA_DIR)],
+            ["elapsed_s", _fmt_float(dt, 3)],
+        ],
+        width,
     )
     if emit_json:
         print(json.dumps(out, indent=2))
@@ -296,12 +334,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_plan.add_argument("--json", action="store_true", help="Also print the JSON output")
     p_plan.add_argument("--csv", metavar="PATH", help="Write proposals to a CSV file")
     p_plan.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
+    p_plan.add_argument("--show", type=int, default=6, help="Show first K proposals in a table")
+    p_plan.add_argument("--no-legend", action="store_true", help="Hide legend/explanations")
 
     p_run = sub.add_parser("run", help="Run end-to-end pipeline and print a summary")
     p_run.add_argument("-n", type=int, default=6, help="Number of candidates to evaluate")
     p_run.add_argument("--top", type=int, default=5, help="Show top-K candidates by score")
     p_run.add_argument("--json", action="store_true", help="Also print the JSON output")
     p_run.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
+    p_run.add_argument("--bio", type=int, default=5, help="Show first K biomarker rows for the selected candidate")
+    p_run.add_argument("--no-legend", action="store_true", help="Hide legend/explanations")
 
     p_api = sub.add_parser("api", help="Run the FastAPI server (uvicorn)")
     p_api.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
@@ -319,10 +361,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.cmd == "plan":
-        return cmd_plan(n=args.n, emit_json=args.json, no_color=args.no_color, csv_path=args.csv)
+        return cmd_plan(
+            n=args.n,
+            emit_json=args.json,
+            no_color=args.no_color,
+            csv_path=args.csv,
+            show_k=max(1, int(args.show)),
+            show_legend=(not args.no_legend),
+        )
     if args.cmd == "run":
         topk = max(1, int(args.top)) if args.top else None
-        return cmd_run(n=args.n, emit_json=args.json, no_color=args.no_color, topk=topk)
+        return cmd_run(
+            n=args.n,
+            emit_json=args.json,
+            no_color=args.no_color,
+            topk=topk,
+            bio_k=max(1, int(args.bio)),
+            show_legend=(not args.no_legend),
+        )
     if args.cmd == "api":
         # Import here so other commands don't require uvicorn installed
         try:
